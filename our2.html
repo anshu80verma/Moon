@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MY MOON</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=Jost:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#211b16;
+    --ivory:#f6efe3;
+    --paper:#fbf7ef;
+    --rose:#c17f70;
+    --wine:#6f3733;
+    --gold:#b99a63;
+    --sage:#8b9a7a;
+    --line: rgba(33,27,22,0.14);
+  }
+
+  *{ box-sizing:border-box; margin:0; padding:0; }
+
+  body{
+    background:var(--ivory);
+    color:var(--ink);
+    font-family:'Jost', sans-serif;
+    font-weight:300;
+    -webkit-font-smoothing:antialiased;
+  }
+
+  /* subtle paper grain */
+  body::before{
+    content:"";
+    position:fixed; inset:0;
+    pointer-events:none;
+    background-image:radial-gradient(rgba(0,0,0,0.035) 1px, transparent 1px);
+    background-size:3px 3px;
+    z-index:1;
+  }
+
+  a{ color:inherit; }
+
+  /* ---------- NAV ---------- */
+  header{
+    position:sticky; top:0; z-index:50;
+    display:flex; align-items:center; justify-content:space-between;
+    padding:22px 6vw;
+    background:rgba(246,239,227,0.88);
+    backdrop-filter:blur(6px);
+    border-bottom:1px solid var(--line);
+  }
+  .logo{
+    font-family:'Cormorant Garamond', serif;
+    font-size:1.5rem;
+    letter-spacing:0.03em;
+  }
+  .logo em{ font-style:italic; color:var(--wine); }
+  nav ul{
+    list-style:none; display:flex; gap:34px;
+  }
+  nav a{
+    text-decoration:none; font-size:0.78rem;
+    text-transform:uppercase; letter-spacing:0.14em;
+    position:relative; padding-bottom:4px;
+  }
+  nav a::after{
+    content:""; position:absolute; left:0; bottom:0;
+    width:0; height:1px; background:var(--wine);
+    transition:width .3s ease;
+  }
+  nav a:hover::after{ width:100%; }
+  .nav-toggle{ display:none; }
+
+  /* ---------- HERO ---------- */
+  .hero{
+    position:relative;
+    min-height:78vh;
+    display:flex; flex-direction:column;
+    align-items:center; justify-content:center;
+    text-align:center;
+    padding:120px 6vw 90px;
+    overflow:hidden;
+  }
+  .hero-eyebrow{
+    font-size:0.75rem; letter-spacing:0.3em; text-transform:uppercase;
+    color:var(--wine); margin-bottom:22px;
+  }
+  .hero h1{
+    font-family:'Cormorant Garamond', serif;
+    font-weight:500;
+    font-size:clamp(2.6rem, 7vw, 5.4rem);
+    line-height:1.05;
+    max-width:16ch;
+  }
+  .hero h1 em{
+    font-style:italic; color:var(--rose);
+  }
+  .hero p{
+    margin-top:26px;
+    max-width:46ch;
+    font-size:1.05rem;
+    line-height:1.7;
+    color:rgba(33,27,22,0.72);
+  }
+  
+  
+  /* ---------- GALLERY ---------- */
+  .gallery-wrap{ padding:0 5vw 100px; position:relative; z-index:2; }
+  .gallery{
+    columns:4 260px;
+    column-gap:34px;
+  }
+  @media (max-width:900px){ .gallery{ columns:2 240px; } }
+  @media (max-width:520px){ .gallery{ columns:1; } }
+
+  .card{
+    break-inside:avoid;
+    margin-bottom:34px;
+    background:var(--paper);
+    padding:14px 14px 20px;
+    box-shadow:0 10px 26px rgba(33,27,22,0.10);
+    transform:rotate(var(--r,-1.4deg));
+    transition:transform .4s ease, box-shadow .4s ease;
+    position:relative;
+    cursor:default;
+  }
+  .card:nth-child(2n){ --r:1.6deg; }
+  .card:nth-child(3n){ --r:-0.8deg; }
+  .card:nth-child(4n){ --r:2.1deg; }
+  .card:nth-child(5n){ --r:-2deg; }
+  .card:hover{
+    transform:rotate(0deg) translateY(-6px);
+    box-shadow:0 22px 40px rgba(33,27,22,0.18);
+    z-index:5;
+  }
+
+  .tape{
+    position:absolute; top:-10px; left:50%;
+    transform:translateX(-50%) rotate(-3deg);
+    width:64px; height:22px;
+    background:rgba(201,166,103,0.55);
+    border:1px solid rgba(201,166,103,0.7);
+  }
+
+  .frame{
+    aspect-ratio: var(--ar, 4/5);
+    width:100%;
+    position:relative;
+    overflow:hidden;
+    background:
+      linear-gradient(135deg, #e7dcc7, #d8c6ab 40%, #cbb491 70%, #e2d3ba);
+  }
+  .frame img{
+    position:absolute;
+    inset:0;
+    width:100%;
+    height:100%;
+    object-fit:contain;   /* shows the FULL photo, never crops */
+    object-position:center;
+  }
+  .frame svg{
+    position:absolute; inset:0; margin:auto;
+    width:34%; height:34%; opacity:0.5;
+  }
+  .frame .ph-label{
+    position:absolute; bottom:10px; left:10px; right:10px;
+    font-size:0.62rem; letter-spacing:0.08em;
+    color:rgba(33,27,22,0.55);
+    font-family:'Jost',sans-serif;
+    background:rgba(251,247,239,0.55);
+    padding:3px 6px;
+  }
+
+  .caption{
+    padding-top:14px;
+    text-align:center;
+  }
+  .caption .title{
+    font-family:'Cormorant Garamond', serif;
+    font-style:italic;
+    font-size:1.15rem;
+  }
+  .caption .meta{
+    margin-top:4px;
+    font-size:0.68rem; letter-spacing:0.1em; text-transform:uppercase;
+    color:rgba(33,27,22,0.55);
+  }
+
+  .card[data-cat="golden"]{ display:block; }
+
+  /* ---------- HOW TO USE (guide block, remove when done) ---------- */
+  .howto{
+    margin:0 6vw 90px;
+    border:1px dashed var(--wine);
+    background:rgba(111,55,51,0.05);
+    padding:26px 30px;
+    font-size:0.85rem;
+    line-height:1.8;
+    color:rgba(33,27,22,0.8);
+  }
+  .howto strong{ color:var(--wine); }
+  .howto code{
+    background:rgba(33,27,22,0.08);
+    padding:1px 6px; border-radius:4px;
+    font-size:0.8rem;
+  }
+
+  /* ---------- CTA ---------- */
+  .cta{
+    text-align:center;
+    padding:100px 6vw 130px;
+    border-top:1px solid var(--line);
+  }
+  .cta h2{
+    font-family:'Cormorant Garamond', serif;
+    font-weight:500; font-style:italic;
+    font-size:clamp(1.9rem, 4vw, 3rem);
+    max-width:20ch; margin:0 auto 22px;
+  }
+  .cta p{
+    max-width:44ch; margin:0 auto 34px;
+    color:rgba(33,27,22,0.7); line-height:1.7;
+  }
+  .btn{
+    display:inline-block;
+    background:var(--wine); color:var(--paper);
+    text-decoration:none;
+    padding:16px 38px;
+    font-size:0.78rem; letter-spacing:0.16em; text-transform:uppercase;
+    border-radius:999px;
+    transition:background .25s ease, transform .25s ease;
+  }
+  .btn:hover{ background:var(--ink); transform:translateY(-2px); }
+
+  footer{
+    padding:36px 6vw;
+    display:flex; justify-content:space-between; align-items:center;
+    border-top:1px solid var(--line);
+    font-size:0.72rem; letter-spacing:0.06em;
+    color:rgba(33,27,22,0.55);
+  }
+  @media (max-width:600px){
+    footer{ flex-direction:column; gap:10px; text-align:center; }
+  }
+
+  @media (prefers-reduced-motion: reduce){
+    .card, .btn, nav a::after{ transition:none; }
+  }
+</style>
+</head>
+<body>
+
+<!-- // header and nav -->  
+
+<section class="hero">
+  <div class="hero-eyebrow">Our Photography Journal</div>
+  <h1>Our<em> Second</em> date</h1>
+  <p>Hameri sec date per hm bohot kuch to nhi kar paaye but han hm bohot khush the tere papa ka call aa rha tha tu pareshaan thi but still hm sath the yhi badi baad thi ... btw sabse memorable chiizz syd uss date ki thi ki mea tere sath fish market gya tha .. as a vegitarian to muje ulti ani chiaye thi .... but as a lover mea tere pyaar me gir gya aur pragnet hua to ulti aa gai 🔫</p>
+ 
+</section>
+
+
+<div class="gallery-wrap" id="gallery">
+  <div class="gallery" id="galleryGrid">
+    <!-- Cards are generated by JS below from the PHOTOS array -->
+  </div>
+</div>
+
+
+<footer>
+  <div>© 2026 MOON</div>
+  <div>Started in Delhi · Going to be forever</div>
+</footer>
+
+<script>
+  // ---- Placeholder icon (used until real photos are dropped in) ----
+  const HEART_SVG = `<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="" stroke="#6f3733" stroke-width="1.3"/>
+  </svg>`;
+
+  // Replace `img` paths below with your real photo files.
+  const PHOTOS = [
+    { img:"images/22.jpeg", title:"Muje yaad h maine teri kamar per apna haat rakh rakha tha", couple:"Ashifa & Anshu", cat:"golden", ratio:"4/5" },
+    { img:"images/23.jpeg",   title:"ye pizza bhi hmne vergin hi liya apni trh", couple:"Ashifa & Anshu", cat:"city",   ratio:"1/1" },
+    { img:"images/24.jpeg",    title:"Trail day, second date",         couple:"Ashifa & Anshu", cat:"adventure", ratio:"3/4" },
+    { img:"images/25.jpeg",  title:"Both in white with a red heart",       couple:"Ashifa & Anshu",     cat:"quiet",  ratio:"4/5" },
+    { img:"images/26.jpeg", title:"Mea jada mota lag rha hu",         couple:"Ashifa & Anshu", cat:"golden", ratio:"3/4" },
+    { img:"images/29.jpeg",   title:"Jab photo click karne mere pass ati h kitni achi lagti h",        couple:"Ashifa & Anshu",  cat:"city",   ratio:"1/1" },
+    { img:"images/27.jpeg",    title:"First hike, sore legs after",    couple:"Ashifa & Anshu",  cat:"adventure", ratio:"4/5" },
+    { img:"images/28.jpeg",  title:"Reading, mostly ignoring each other", couple:"Ashifa & Anshu", cat:"quiet", ratio:"1/1" },
+    { img:"images/30.jpeg", title:"sexxxxxyyyyy baddieee",  couple:"Ashifa & Anshu", cat:"golden", ratio:"3/4" },
+    { img:"images/31.jpeg", title:"Modeling start kar de ",  couple:"Ashifa & Anshu", cat:"golden", ratio:"3/4" },
+    { img:"images/32.jpeg", title:"peeche kya dekh rhi h",  couple:"Ashifa & Anshu", cat:"golden", ratio:"3/4" },
+  ];
+
+  const grid = document.getElementById('galleryGrid');
+
+  function render(list){
+    grid.innerHTML = list.map(p => `
+      <div class="card" data-cat="${p.cat}">
+        <div class="tape"></div>
+        <div class="frame" style="--ar:${p.ratio}">
+         <img src="${p.img}" alt="${p.title}">
+        </div>
+        <div class="caption">
+          <div class="title">${p.title}</div>
+          <div class="meta">${p.couple}</div>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  render(PHOTOS);
+
+  
+</script>
+
+</body>
+</html>

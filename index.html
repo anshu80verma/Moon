@@ -32,6 +32,12 @@
       rel="stylesheet"
     />
 
+    <!-- Caveat handwritten font, for the love letter -->
+    <link
+      href="https://fonts.bunny.net/css2?family=Caveat:wght@500;600;700&display=swap"
+      rel="stylesheet"
+    />
+
     <!-- Tailwind CSS Play CDN (mostly for development/testing purposes) -->
     <script src="https://unpkg.com/@tailwindcss/browser@4"></script>
 
@@ -54,6 +60,14 @@
     <style>
       [x-cloak] {
         display: none !important;
+      }
+
+      @keyframes letter-bob {
+        0%, 100% { transform: translateY(0) rotate(-4deg); }
+        50% { transform: translateY(-6px) rotate(-4deg); }
+      }
+      .letter-bubble {
+        animation: letter-bob 2.6s ease-in-out infinite;
       }
     </style>
   </head>
@@ -80,7 +94,7 @@
         passwordInput: '',
         passwordError: false,
         checking: false,
-        correctHash: '4eb5846da827413241cccdfd2c225543f16aaef1f9af51f6a245a9cdeb1ebfd1',
+        correctHash: '77aa5a4f9aa447478c828c48cd9af46975d9bb0375a7cb5bbba03be5f4aa8d31',
 
         async submitPassword() {
           if (!this.passwordInput) return;
@@ -101,7 +115,10 @@
           }
           this.checking = false;
           this.passwordInput = '';
-        }
+        },
+
+        // --- Love letter bubble ---
+        letterOpen: false
       }"
       class="min-h-dvh min-w-80 bg-white text-zinc-800 dark:bg-zinc-950 dark:text-zinc-100"
     >
@@ -477,6 +494,127 @@
         <!-- END Main Content -->
       </main>
       <!-- END Page Content -->
+
+      <!-- Love Letter Notification Bubble -->
+      <button
+        x-cloak
+        x-show="unlocked && !letterOpen"
+        x-on:click="letterOpen = true"
+        type="button"
+        aria-label="Open love letter"
+        class="letter-bubble fixed bottom-5 left-5 z-40 flex size-14 items-center justify-center rounded-full bg-gradient-to-br from-yellow-400 to-orange-500 text-2xl shadow-lg shadow-orange-500/30 transition hover:scale-105 active:scale-95 sm:bottom-6 sm:left-6"
+      >
+        <span aria-hidden="true">🌙</span>
+        <span
+          aria-hidden="true"
+          class="absolute -top-0.5 -right-0.5 flex size-3.5"
+        >
+          <span
+            class="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-400 opacity-75"
+          ></span>
+          <span
+            class="relative inline-flex size-3.5 rounded-full bg-red-500"
+          ></span>
+        </span>
+      </button>
+      <!-- END Love Letter Notification Bubble -->
+
+      <!-- Love Letter Modal -->
+      <div
+        x-cloak
+        x-show="letterOpen"
+        x-on:keydown.escape.window="letterOpen = false"
+        x-transition:enter="transition ease-out duration-200"
+        x-transition:enter-start="opacity-0"
+        x-transition:enter-end="opacity-100"
+        x-transition:leave="transition ease-in duration-150"
+        x-transition:leave-start="opacity-100"
+        x-transition:leave-end="opacity-0"
+        class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
+      >
+        <!-- Click outside to close -->
+        <div class="absolute inset-0" x-on:click="letterOpen = false"></div>
+
+        <div class="relative w-full max-w-md">
+          <!-- Close -->
+          <button
+            type="button"
+            x-on:click="letterOpen = false"
+            aria-label="Roll the letter back up"
+            class="absolute -top-12 right-0 text-sm font-medium text-zinc-200 hover:text-yellow-400"
+          >
+            Close ✕
+          </button>
+
+          <!-- The scroll -->
+          <div
+            x-show="letterOpen"
+            x-transition:enter="transition-all duration-500 ease-out"
+            x-transition:enter-start="opacity-0 scale-y-0"
+            x-transition:enter-end="opacity-100 scale-y-100"
+            x-transition:leave="transition-all duration-300 ease-in"
+            x-transition:leave-start="opacity-100 scale-y-100"
+            x-transition:leave-end="opacity-0 scale-y-0"
+            style="transform-origin: top center;"
+            class="relative"
+          >
+            <!-- Top dowel -->
+            <div
+              class="relative z-10 h-4 rounded-full bg-gradient-to-r from-amber-800 via-amber-500 to-amber-800 shadow-md"
+            ></div>
+
+            <!-- Paper -->
+            <div
+              class="relative -mt-1 -mb-1 max-h-[75dvh] overflow-y-auto bg-[#fdf6e3] px-7 py-8 shadow-2xl sm:px-10 sm:py-10"
+            >
+              <!-- Photo, taped in like a keepsake -->
+              <div class="mx-auto mb-6 w-40 rotate-[-3deg] bg-white p-2 pb-4 shadow-md sm:w-44">
+                <div
+                  aria-hidden="true"
+                  class="absolute left-1/2 -top-3 h-6 w-16 -translate-x-1/2 -rotate-2 bg-yellow-200/70"
+                  style="clip-path: polygon(0 0, 100% 0, 92% 100%, 8% 100%);"
+                ></div>
+                <img
+                  src="assets/photo.jpeg"
+                  alt="Our photo"
+                  class="aspect-square w-full rounded-sm object-cover"
+                />
+              </div>
+
+              <!-- Handwritten note -->
+              <div
+                style="font-family: 'Caveat', cursive;"
+                class="text-center text-[#4a3520]"
+              >
+                <p class="text-2xl leading-snug sm:text-[26px]">
+                  My dearest Ashifa,
+                </p>
+                <p class="mt-4 text-xl leading-relaxed sm:text-2xl">
+                  I built this little corner of the internet just so I'd have
+                  somewhere to keep every reason I'm grateful for you. If
+                  you're reading this, consider it found — a letter rolled up
+                  and tucked away, waiting for the one person it was always
+                  meant for.
+                </p>
+                <p class="mt-4 text-xl leading-relaxed sm:text-2xl">
+                  Thank you for being exactly who you are. I don't say it
+                  enough, so let this be the proof, saved somewhere it can't
+                  be forgotten.
+                </p>
+                <p class="mt-6 text-2xl sm:text-[26px]">
+                  Forever yours,<br />Moon 🌙
+                </p>
+              </div>
+            </div>
+
+            <!-- Bottom dowel -->
+            <div
+              class="relative z-10 h-4 rounded-full bg-gradient-to-r from-amber-800 via-amber-500 to-amber-800 shadow-md"
+            ></div>
+          </div>
+        </div>
+      </div>
+      <!-- END Love Letter Modal -->
     </div>
     <!-- END Page Container -->
   </body>

@@ -128,7 +128,6 @@
   }
   .add-slot .label{ font-size:14px; }
   .add-slot .hint{ font-size:12px; margin-top:6px; color:var(--muted); }
-  .add-slot.uploading{ pointer-events:none; opacity:0.6; }
 
   #file-input{ display:none; }
 
@@ -184,16 +183,51 @@
   const fileInput = document.getElementById('file-input');
   const toastEl = document.getElementById('toast');
   const countEl = document.getElementById('count');
-
-  // Every entry is stored server-side under its own key, e.g. "wall-entry:e12345",
-  // as SHARED data — meaning every visitor to this page (any browser, computer,
-  // or phone) reads and writes the same wall. Anyone who opens this can see,
-  // caption, or unpin any photo.
-  const ENTRY_PREFIX = 'wall-entry:';
+  const STORAGE_KEY = 'wall-entries';
   let entries = [];
-  const saveTimers = {};
+  let saveTimer = null;
 
-  function entryKey(id){ return ENTRY_PREFIX + id; }
+  // --- IndexedDB-backed storage (persists on this browser/device across reloads) ---
+  const idbStorage = (function(){
+    const DB_NAME = 'the-wall-db';
+    const STORE = 'kv';
+    let dbPromise = null;
+
+    function openDb(){
+      if(dbPromise) return dbPromise;
+      dbPromise = new Promise((resolve, reject)=>{
+        const req = indexedDB.open(DB_NAME, 1);
+        req.onupgradeneeded = () => {
+          req.result.createObjectStore(STORE);
+        };
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error);
+      });
+      return dbPromise;
+    }
+
+    async function get(key){
+      const db = await openDb();
+      return new Promise((resolve, reject)=>{
+        const tx = db.transaction(STORE, 'readonly');
+        const req = tx.objectStore(STORE).get(key);
+        req.onsuccess = () => resolve(req.result === undefined ? null : { key, value: req.result });
+        req.onerror = () => reject(req.error);
+      });
+    }
+
+    async function set(key, value){
+      const db = await openDb();
+      return new Promise((resolve, reject)=>{
+        const tx = db.transaction(STORE, 'readwrite');
+        tx.objectStore(STORE).put(value, key);
+        tx.oncomplete = () => resolve({ key, value });
+        tx.onerror = () => reject(tx.error);
+      });
+    }
+
+    return { get, set };
+  })();
 
   function showToast(msg){
     toastEl.textContent = msg;
@@ -214,27 +248,18 @@
     countEl.textContent = entries.length + (entries.length === 1 ? ' photo pinned' : ' photos pinned');
   }
 
-  // Save a single entry to shared server storage
-  async function persistEntry(entry){
+  async function persist(){
     try{
-      const res = await window.storage.set(entryKey(entry.id), JSON.stringify(entry), true);
-      if(!res){ showToast("Couldn't save to the wall. Try again in a moment."); }
+      const res = await idbStorage.set(STORAGE_KEY, JSON.stringify(entries));
+      if(!res){ showToast("Couldn't save. Your wall might be full — try removing a photo."); }
     }catch(err){
-      showToast("Couldn't save to the wall. Try again in a moment.");
+      showToast("Couldn't save changes. Try removing an older photo to free up space.");
     }
   }
 
-  function scheduleSave(entry){
-    clearTimeout(saveTimers[entry.id]);
-    saveTimers[entry.id] = setTimeout(()=> persistEntry(entry), 500);
-  }
-
-  async function deleteEntryFromServer(id){
-    try{
-      await window.storage.delete(entryKey(id), true);
-    }catch(err){
-      showToast("Couldn't remove that photo from the server.");
-    }
+  function scheduleSave(){
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(persist, 500);
   }
 
   function makeCard(entry){
@@ -260,7 +285,7 @@
     textarea.rows = 2;
     textarea.addEventListener('input', ()=>{
       entry.caption = textarea.value;
-      scheduleSave(entry);
+      scheduleSave();
     });
     card.appendChild(textarea);
 
@@ -276,7 +301,7 @@
       entries = entries.filter(e => e.id !== entry.id);
       card.remove();
       updateCount();
-      deleteEntryFromServer(entry.id);
+      persist();
     });
     meta.appendChild(date);
     meta.appendChild(del);
@@ -337,10 +362,6 @@
   async function handleFiles(fileList){
     const files = Array.from(fileList).filter(f => f.type.startsWith('image/'));
     if(files.length === 0) return;
-
-    const addSlot = board.querySelector('.add-slot');
-    if(addSlot) addSlot.classList.add('uploading');
-
     for(const file of files){
       try{
         const dataUrl = await compressImage(file);
@@ -351,16 +372,14 @@
           date: new Date().toISOString()
         };
         entries.unshift(entry);
+        const addSlot = board.querySelector('.add-slot');
         board.insertBefore(makeCard(entry), addSlot);
         updateCount();
-        // Upload to the server immediately so it's there for every visitor.
-        await persistEntry(entry);
       }catch(err){
-        showToast("Couldn't upload one of those photos. If it's a very large image, try a smaller one.");
+        showToast("Couldn't read one of those photos.");
       }
     }
-
-    if(addSlot) addSlot.classList.remove('uploading');
+    persist();
   }
 
   fileInput.addEventListener('change', () => {
@@ -371,28 +390,16 @@
   document.addEventListener('dragover', e => e.preventDefault());
   document.addEventListener('drop', e => e.preventDefault());
 
-  async function loadFromServer(){
-    try{
-      const listRes = await window.storage.list(ENTRY_PREFIX, true);
-      const keys = (listRes && listRes.keys) ? listRes.keys : [];
-      const loaded = await Promise.all(keys.map(async (key) => {
-        try{
-          const res = await window.storage.get(key, true);
-          return res && res.value ? JSON.parse(res.value) : null;
-        }catch(err){
-          return null;
-        }
-      }));
-      entries = loaded.filter(Boolean);
-    }catch(err){
-      entries = [];
-      showToast("Couldn't load the wall from the server.");
-    }
-  }
-
   async function init(){
     board.appendChild(addSlotEl());
-    await loadFromServer();
+    try{
+      const res = await idbStorage.get(STORAGE_KEY);
+      if(res && res.value){
+        entries = JSON.parse(res.value);
+      }
+    }catch(err){
+      entries = [];
+    }
     renderAll();
     loading.style.display = 'none';
     board.style.display = 'grid';

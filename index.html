@@ -71,13 +71,112 @@
           } else {
             document.body.parentNode.classList.remove('dark');
           }
+        },
+
+        // --- Password gate ---
+        // The real password is never stored here in plain text, only its
+        // SHA-256 hash, so casually viewing the page source doesn't reveal it.
+        unlocked: sessionStorage.getItem('moon-unlocked') === 'true',
+        passwordInput: '',
+        passwordError: false,
+        checking: false,
+        correctHash: '4eb5846da827413241cccdfd2c225543f16aaef1f9af51f6a245a9cdeb1ebfd1',
+
+        async submitPassword() {
+          if (!this.passwordInput) return;
+          this.checking = true;
+          this.passwordError = false;
+
+          const enc = new TextEncoder().encode(this.passwordInput);
+          const digest = await crypto.subtle.digest('SHA-256', enc);
+          const hashHex = Array.from(new Uint8Array(digest))
+            .map(b => b.toString(16).padStart(2, '0'))
+            .join('');
+
+          if (hashHex === this.correctHash) {
+            this.unlocked = true;
+            sessionStorage.setItem('moon-unlocked', 'true');
+          } else {
+            this.passwordError = true;
+          }
+          this.checking = false;
+          this.passwordInput = '';
         }
       }"
       class="min-h-dvh min-w-80 bg-white text-zinc-800 dark:bg-zinc-950 dark:text-zinc-100"
     >
+      <!-- Password Gate -->
+      <div
+        x-cloak
+        x-show="!unlocked"
+        x-transition:leave="transition ease-in duration-200"
+        x-transition:leave-start="opacity-100"
+        x-transition:leave-end="opacity-0"
+        class="fixed inset-0 z-50 flex min-h-dvh items-center justify-center bg-white p-4 dark:bg-zinc-950"
+      >
+        <form
+          x-on:submit.prevent="submitPassword()"
+          class="relative w-full max-w-sm overflow-hidden rounded-xl bg-zinc-100 p-8 dark:bg-zinc-900"
+        >
+          <div
+            aria-hidden="true"
+            class="absolute -top-20 -left-20 size-48 rounded-full bg-yellow-500 blur-2xl"
+          ></div>
+          <div
+            aria-hidden="true"
+            class="absolute -top-10 -right-10 size-64 rounded-full bg-orange-300 blur-3xl"
+          ></div>
+          <div
+            aria-hidden="true"
+            class="absolute inset-0 bg-yellow-100/50 backdrop-blur-md dark:bg-yellow-900/75"
+          ></div>
+
+          <div class="relative">
+            <h1 class="text-2xl font-medium text-black dark:text-white">
+              MOON
+            </h1>
+            <p class="mt-2 text-sm text-zinc-700 dark:text-zinc-300">
+              Enter the password to continue
+            </p>
+
+            <input
+              type="password"
+              x-model="passwordInput"
+              x-on:input="passwordError = false"
+              placeholder="Password"
+              autocomplete="off"
+              autofocus
+              class="mt-6 w-full rounded-lg border border-zinc-300 bg-white/80 px-4 py-2.5 text-zinc-900 placeholder-zinc-500 outline-none focus:border-yellow-600 focus:ring-2 focus:ring-yellow-500/40 dark:border-zinc-700 dark:bg-zinc-950/60 dark:text-white"
+            />
+
+            <p
+              x-cloak
+              x-show="passwordError"
+              class="mt-2 text-sm font-medium text-red-600 dark:text-red-400"
+            >
+              Wrong password, try again.
+            </p>
+
+            <button
+              type="submit"
+              x-bind:disabled="checking"
+              class="mt-4 w-full rounded-lg bg-zinc-900 px-4 py-2.5 font-medium text-white transition hover:bg-zinc-800 active:opacity-80 disabled:opacity-60 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-200"
+            >
+              <span x-show="!checking">Unlock</span>
+              <span x-show="checking">Checking…</span>
+            </button>
+          </div>
+        </form>
+      </div>
+      <!-- END Password Gate -->
       <!-- Page Content -->
       <main
         id="page-content"
+        x-cloak
+        x-show="unlocked"
+        x-transition:enter="transition ease-out duration-300"
+        x-transition:enter-start="opacity-0"
+        x-transition:enter-end="opacity-100"
         class="mx-auto flex max-w-6xl flex-auto flex-col px-4 pb-4 lg:px-8 lg:pb-8"
       >
         <!-- Main Header -->
@@ -306,7 +405,7 @@
               </svg>
             </div>
             <h3 class="text-lg font-medium text-zinc-950 dark:text-zinc-50">
-              Second date
+              Abstract set
             </h3>
             <h4 class="text-sm text-zinc-600 dark:text-zinc-400">click to view</h4>
             <div
@@ -342,7 +441,7 @@
               </svg>
             </div>
             <h3 class="text-lg font-medium text-zinc-950 dark:text-zinc-50">
-              Third date
+              Abstract set
             </h3>
             <h4 class="text-sm text-zinc-600 dark:text-zinc-400">click to view</h4>
             <div

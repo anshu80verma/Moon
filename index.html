@@ -129,11 +129,44 @@
         x-transition:leave="transition ease-in duration-200"
         x-transition:leave-start="opacity-100"
         x-transition:leave-end="opacity-0"
-        class="fixed inset-0 z-50 flex min-h-dvh items-center justify-center bg-white p-4 dark:bg-zinc-950"
+        class="fixed inset-0 z-50 flex min-h-dvh items-center justify-center overflow-hidden bg-white p-4 dark:bg-zinc-950"
       >
+        <!--
+          Lock screen background photo (desktop / tablet).
+          To change it later, just upload a new image as
+          assets/bg.png (same filename replaces it automatically),
+          or edit the src below to point at a different file.
+          Hidden on phone-sized screens in favor of the dedicated
+          mobile wallpaper below.
+        -->
+        <img
+          src="assets/bg.png"
+          alt=""
+          aria-hidden="true"
+          class="absolute inset-0 hidden size-full object-cover sm:block"
+        />
+        <!--
+          Lock screen background photo (phone).
+          Shown only below Tailwind's `sm` breakpoint (roughly
+          phone-width viewports, including opening the site "as a
+          device" on a phone). Upload a new image as
+          assets/bg-mobile.png to replace it, or edit the src below.
+        -->
+        <img
+          src="assets/bg-mobile.jpg"
+          alt=""
+          aria-hidden="true"
+          class="absolute inset-0 block size-full object-cover sm:hidden"
+        />
+        <!-- Soft overlay so the form stays readable over the photo -->
+        <div
+          aria-hidden="true"
+          class="absolute inset-0 bg-gradient-to-b from-black/50 via-black/40 to-black/60"
+        ></div>
+
         <form
           x-on:submit.prevent="submitPassword()"
-          class="relative w-full max-w-sm overflow-hidden rounded-xl bg-zinc-100 p-8 dark:bg-zinc-900"
+          class="relative w-full max-w-sm overflow-hidden rounded-xl bg-white/10 p-8 shadow-2xl backdrop-blur-md"
         >
           <div
             aria-hidden="true"
@@ -145,14 +178,14 @@
           ></div>
           <div
             aria-hidden="true"
-            class="absolute inset-0 bg-yellow-100/50 backdrop-blur-md dark:bg-yellow-900/75"
+            class="absolute inset-0 bg-yellow-100/20 backdrop-blur-sm dark:bg-yellow-900/25"
           ></div>
 
           <div class="relative">
-            <h1 class="text-2xl font-medium text-black dark:text-white">
-              MOON
+            <h1 class="text-2xl font-medium text-black drop-shadow-sm dark:text-white">
+              MOON 
             </h1>
-            <p class="mt-2 text-sm text-zinc-700 dark:text-zinc-300">
+            <p class="mt-2 text-sm text-zinc-800 drop-shadow-sm dark:text-zinc-200">
               Enter the password to continue
             </p>
 
@@ -163,7 +196,7 @@
               placeholder="Password"
               autocomplete="off"
               autofocus
-              class="mt-6 w-full rounded-lg border border-zinc-300 bg-white/80 px-4 py-2.5 text-zinc-900 placeholder-zinc-500 outline-none focus:border-yellow-600 focus:ring-2 focus:ring-yellow-500/40 dark:border-zinc-700 dark:bg-zinc-950/60 dark:text-white"
+              class="mt-6 w-full rounded-lg border border-white/30 bg-white/20 px-4 py-2.5 text-zinc-900 placeholder-zinc-600 outline-none backdrop-blur-sm focus:border-yellow-600 focus:ring-2 focus:ring-yellow-500/40 dark:border-white/10 dark:bg-zinc-950/30 dark:text-white dark:placeholder-zinc-400"
             />
 
             <p
@@ -171,7 +204,7 @@
               x-show="passwordError"
               class="mt-2 text-sm font-medium text-red-600 dark:text-red-400"
             >
-              Wrong password, try again.
+              Wrong password, ask your Boyfriend.
             </p>
 
             <button
@@ -590,11 +623,10 @@
                   My dearest Ashifa,
                 </p>
                 <p class="mt-4 text-xl leading-relaxed sm:text-2xl">
-                  I built this little corner of the internet just so I'd have
-                  somewhere to keep every reason I'm grateful for you. If
-                  you're reading this, consider it found — a letter rolled up
-                  and tucked away, waiting for the one person it was always
-                  meant for
+                  First of all happppyyyy girlfirends day ... vaise to mea ye aisa kuch banne nhi vala tha gf day vagira but fir socha ki 
+                  nhi bna lena chiaye.. tuje acha lagega .. kya pata nhi wish kia to gussa ho jaaye , vaise to bohot jada ni h bolne ko but han 
+                  muje pata h tu in dino bohot jada pareshan h , aur mea isme bohot kuch teri help bhi nhi kar sakta but han tere sath hu mea hmesha aur 
+                  jab jab tuje meri jrurat hogi tab tab honga ... idk kya bolna chiaye gf day per but again happpyy girlfriend day ... thankyou to come in my life .
                 </p>
                 <p class="mt-4 text-xl leading-relaxed sm:text-2xl">
                   Thank you for being exactly who you are. I don't say it
@@ -619,3 +651,4 @@
     <!-- END Page Container -->
   </body>
 </html>
+

@@ -106,6 +106,7 @@
     font-family:'Work Sans', sans-serif;
   }
   .card .del:hover{ color:var(--danger); }
+  .card .saving{ font-size:10px; color:#b3a993; }
 
   .card:nth-child(3n+1){ transform:rotate(-1.6deg); }
   .card:nth-child(3n+2){ transform:rotate(1.1deg); }
@@ -128,6 +129,7 @@
   }
   .add-slot .label{ font-size:14px; }
   .add-slot .hint{ font-size:12px; margin-top:6px; color:var(--muted); }
+  .add-slot.uploading{ opacity:0.6; pointer-events:none; }
 
   #file-input{ display:none; }
 
@@ -169,65 +171,37 @@
 </header>
 
 <main>
-  <div id="loading" class="loading">Unpinning your wall…</div>
+  <div id="loading" class="loading">Unpinning the wall…</div>
   <div class="board" id="board" style="display:none;"></div>
 </main>
 
 <input type="file" id="file-input" accept="image/*" multiple>
 <div class="toast" id="toast"></div>
 
+<!-- Supabase client library -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
 (function(){
+
+  // ============================================================
+  // 1) FILL THESE IN with your own Supabase project's values.
+  //    Project Settings -> API -> Project URL / anon public key
+  // ============================================================
+  const SUPABASE_URL = 'https://qpeoldazjmctxaefdwni.supabase.co';
+  const SUPABASE_ANON_KEY = 'sb_publishable_dm8NgOu_Wt1f7ussG76qkw_ODaRW-1h';
+  const BUCKET = 'wall-photos';   // storage bucket name
+  const TABLE = 'photos';         // database table name
+  // ============================================================
+
+  const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
   const board = document.getElementById('board');
   const loading = document.getElementById('loading');
   const fileInput = document.getElementById('file-input');
   const toastEl = document.getElementById('toast');
   const countEl = document.getElementById('count');
-  const STORAGE_KEY = 'wall-entries';
   let entries = [];
-  let saveTimer = null;
-
-  // --- IndexedDB-backed storage (persists on this browser/device across reloads) ---
-  const idbStorage = (function(){
-    const DB_NAME = 'the-wall-db';
-    const STORE = 'kv';
-    let dbPromise = null;
-
-    function openDb(){
-      if(dbPromise) return dbPromise;
-      dbPromise = new Promise((resolve, reject)=>{
-        const req = indexedDB.open(DB_NAME, 1);
-        req.onupgradeneeded = () => {
-          req.result.createObjectStore(STORE);
-        };
-        req.onsuccess = () => resolve(req.result);
-        req.onerror = () => reject(req.error);
-      });
-      return dbPromise;
-    }
-
-    async function get(key){
-      const db = await openDb();
-      return new Promise((resolve, reject)=>{
-        const tx = db.transaction(STORE, 'readonly');
-        const req = tx.objectStore(STORE).get(key);
-        req.onsuccess = () => resolve(req.result === undefined ? null : { key, value: req.result });
-        req.onerror = () => reject(req.error);
-      });
-    }
-
-    async function set(key, value){
-      const db = await openDb();
-      return new Promise((resolve, reject)=>{
-        const tx = db.transaction(STORE, 'readwrite');
-        tx.objectStore(STORE).put(value, key);
-        tx.oncomplete = () => resolve({ key, value });
-        tx.onerror = () => reject(tx.error);
-      });
-    }
-
-    return { get, set };
-  })();
+  const captionTimers = {};
 
   function showToast(msg){
     toastEl.textContent = msg;
@@ -248,20 +222,44 @@
     countEl.textContent = entries.length + (entries.length === 1 ? ' photo pinned' : ' photos pinned');
   }
 
-  async function persist(){
-    try{
-      const res = await idbStorage.set(STORAGE_KEY, JSON.stringify(entries));
-      if(!res){ showToast("Couldn't save. Your wall might be full — try removing a photo."); }
-    }catch(err){
-      showToast("Couldn't save changes. Try removing an older photo to free up space.");
-    }
+  // ---- Database helpers ----
+  async function loadEntries(){
+    const { data, error } = await supabase
+      .from(TABLE)
+      .select('*')
+      .order('created_at', { ascending: false });
+    if(error){ console.error(error); showToast("Couldn't load the wall."); return []; }
+    return data;
   }
 
-  function scheduleSave(){
-    clearTimeout(saveTimer);
-    saveTimer = setTimeout(persist, 500);
+  async function insertEntry(entry){
+    const { error } = await supabase.from(TABLE).insert({
+      id: entry.id,
+      img_url: entry.img_url,
+      img_path: entry.img_path,
+      caption: entry.caption,
+      created_at: entry.created_at
+    });
+    if(error){ console.error(error); showToast("Couldn't save that photo."); }
   }
 
+  async function updateCaption(id, caption){
+    const { error } = await supabase.from(TABLE).update({ caption }).eq('id', id);
+    if(error){ console.error(error); showToast("Couldn't save your note."); }
+  }
+
+  async function deleteEntry(entry){
+    await supabase.storage.from(BUCKET).remove([entry.img_path]);
+    const { error } = await supabase.from(TABLE).delete().eq('id', entry.id);
+    if(error){ console.error(error); showToast("Couldn't unpin that photo."); }
+  }
+
+  function scheduleCaptionSave(id, value){
+    clearTimeout(captionTimers[id]);
+    captionTimers[id] = setTimeout(()=> updateCaption(id, value), 600);
+  }
+
+  // ---- Rendering ----
   function makeCard(entry){
     const card = document.createElement('div');
     card.className = 'card';
@@ -274,7 +272,7 @@
     const photoWrap = document.createElement('div');
     photoWrap.className = 'photo-wrap';
     const img = document.createElement('img');
-    img.src = entry.img;
+    img.src = entry.img_url;
     img.alt = 'Pinned photo';
     photoWrap.appendChild(img);
     card.appendChild(photoWrap);
@@ -285,7 +283,7 @@
     textarea.rows = 2;
     textarea.addEventListener('input', ()=>{
       entry.caption = textarea.value;
-      scheduleSave();
+      scheduleCaptionSave(entry.id, textarea.value);
     });
     card.appendChild(textarea);
 
@@ -293,15 +291,15 @@
     meta.className = 'meta';
     const date = document.createElement('span');
     date.className = 'date';
-    date.textContent = fmtDate(entry.date);
+    date.textContent = fmtDate(entry.created_at);
     const del = document.createElement('button');
     del.className = 'del';
     del.textContent = 'Unpin';
-    del.addEventListener('click', ()=>{
+    del.addEventListener('click', async ()=>{
       entries = entries.filter(e => e.id !== entry.id);
       card.remove();
       updateCount();
-      persist();
+      await deleteEntry(entry);
     });
     meta.appendChild(date);
     meta.appendChild(del);
@@ -313,10 +311,7 @@
   function renderAll(){
     board.querySelectorAll('.card').forEach(c => c.remove());
     const addSlot = board.querySelector('.add-slot');
-    entries
-      .slice()
-      .sort((a,b) => new Date(b.date) - new Date(a.date))
-      .forEach(entry => board.insertBefore(makeCard(entry), addSlot));
+    entries.forEach(entry => board.insertBefore(makeCard(entry), addSlot));
     updateCount();
   }
 
@@ -349,7 +344,7 @@
           canvas.width = w; canvas.height = h;
           const ctx = canvas.getContext('2d');
           ctx.drawImage(img, 0, 0, w, h);
-          resolve(canvas.toDataURL('image/jpeg', 0.78));
+          canvas.toBlob(blob => resolve(blob), 'image/jpeg', 0.78);
         };
         img.onerror = reject;
         img.src = reader.result;
@@ -362,24 +357,41 @@
   async function handleFiles(fileList){
     const files = Array.from(fileList).filter(f => f.type.startsWith('image/'));
     if(files.length === 0) return;
+
+    const addSlot = board.querySelector('.add-slot');
+    addSlot.classList.add('uploading');
+
     for(const file of files){
       try{
-        const dataUrl = await compressImage(file);
+        const blob = await compressImage(file);
+        const id = 'e' + Date.now() + Math.random().toString(36).slice(2,8);
+        const path = id + '.jpg';
+
+        const { error: uploadError } = await supabase.storage
+          .from(BUCKET)
+          .upload(path, blob, { contentType: 'image/jpeg', upsert: false });
+        if(uploadError) throw uploadError;
+
+        const { data: pub } = supabase.storage.from(BUCKET).getPublicUrl(path);
+
         const entry = {
-          id: 'e' + Date.now() + Math.random().toString(36).slice(2,8),
-          img: dataUrl,
+          id,
+          img_url: pub.publicUrl,
+          img_path: path,
           caption: '',
-          date: new Date().toISOString()
+          created_at: new Date().toISOString()
         };
+
+        await insertEntry(entry);
         entries.unshift(entry);
-        const addSlot = board.querySelector('.add-slot');
         board.insertBefore(makeCard(entry), addSlot);
         updateCount();
       }catch(err){
-        showToast("Couldn't read one of those photos.");
+        console.error(err);
+        showToast("Couldn't upload one of those photos.");
       }
     }
-    persist();
+    addSlot.classList.remove('uploading');
   }
 
   fileInput.addEventListener('change', () => {
@@ -390,19 +402,44 @@
   document.addEventListener('dragover', e => e.preventDefault());
   document.addEventListener('drop', e => e.preventDefault());
 
+  // ---- Live updates: see photos other people pin, in real time ----
+  function subscribeRealtime(){
+    supabase
+      .channel('public:' + TABLE)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: TABLE }, payload => {
+        const row = payload.new;
+        if(entries.some(e => e.id === row.id)) return;
+        entries.unshift(row);
+        const addSlot = board.querySelector('.add-slot');
+        board.insertBefore(makeCard(row), addSlot);
+        updateCount();
+      })
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: TABLE }, payload => {
+        const id = payload.old.id;
+        entries = entries.filter(e => e.id !== id);
+        const card = board.querySelector('.card[data-id="' + id + '"]');
+        if(card) card.remove();
+        updateCount();
+      })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: TABLE }, payload => {
+        const row = payload.new;
+        const e = entries.find(e => e.id === row.id);
+        if(e) e.caption = row.caption;
+        const card = board.querySelector('.card[data-id="' + row.id + '"]');
+        if(card && document.activeElement !== card.querySelector('textarea')){
+          card.querySelector('textarea').value = row.caption || '';
+        }
+      })
+      .subscribe();
+  }
+
   async function init(){
     board.appendChild(addSlotEl());
-    try{
-      const res = await idbStorage.get(STORAGE_KEY);
-      if(res && res.value){
-        entries = JSON.parse(res.value);
-      }
-    }catch(err){
-      entries = [];
-    }
+    entries = await loadEntries();
     renderAll();
     loading.style.display = 'none';
     board.style.display = 'grid';
+    subscribeRealtime();
   }
 
   init();

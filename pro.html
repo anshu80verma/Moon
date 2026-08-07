@@ -88,6 +88,66 @@
   .card img{
     display:block; width:100%; height:auto;
   }
+  .photo-wrap.locked img{
+    filter:blur(22px) saturate(1.1);
+    transform:scale(1.08);
+    transition:filter 0.3s ease;
+  }
+  .lock-overlay{
+    position:absolute; inset:0; z-index:3;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    gap:8px; padding:16px; text-align:center;
+    background:rgba(0,0,0,0.18);
+    color:#fff;
+  }
+  .lock-overlay .lock-icon{ font-size:26px; }
+  .lock-overlay .lock-label{
+    font-size:12px; letter-spacing:0.05em; text-transform:uppercase; opacity:0.9;
+  }
+  .lock-overlay form{ display:flex; gap:6px; margin-top:4px; }
+  .lock-overlay input[type="password"]{
+    width:96px; padding:6px 8px; border:none; border-radius:3px;
+    font-family:'Work Sans', sans-serif; font-size:14px; text-align:center;
+    letter-spacing:0.12em;
+  }
+  .lock-overlay button{
+    border:none; border-radius:3px; padding:6px 10px; cursor:pointer;
+    background:var(--gold-dark); color:var(--ink); font-size:13px;
+    font-family:'Work Sans', sans-serif; font-weight:500;
+  }
+  .lock-overlay button:hover{ opacity:0.85; }
+  .card .lock-toggle{
+    border:none; background:none; cursor:pointer; color:#b3a993;
+    font-size:11px; letter-spacing:0.03em; padding:2px 4px;
+    font-family:'Work Sans', sans-serif;
+  }
+  .card .lock-toggle:hover{ color:var(--gold-dark); }
+
+  .modal-backdrop{
+    position:fixed; inset:0; z-index:30; background:rgba(0,0,0,0.5);
+    display:none; align-items:center; justify-content:center; padding:20px;
+  }
+  .modal-backdrop.show{ display:flex; }
+  .modal-box{
+    background:var(--paper); color:var(--ink); padding:24px 22px;
+    max-width:320px; width:100%; box-shadow:0 14px 30px rgba(0,0,0,0.4);
+  }
+  .modal-box h3{
+    font-family:'Fraunces', serif; font-weight:600; margin:0 0 8px; font-size:19px;
+  }
+  .modal-box p{ font-size:13px; color:var(--ink-soft); margin:0 0 14px; line-height:1.4; }
+  .modal-box input[type="password"]{
+    width:100%; padding:9px 10px; border:1px solid rgba(0,0,0,0.15); border-radius:3px;
+    font-family:'Work Sans', sans-serif; font-size:15px; letter-spacing:0.08em;
+    margin-bottom:14px;
+  }
+  .modal-actions{ display:flex; gap:8px; justify-content:flex-end; }
+  .modal-actions button{
+    border:none; border-radius:3px; padding:8px 14px; cursor:pointer;
+    font-family:'Work Sans', sans-serif; font-size:13px; font-weight:500;
+  }
+  .modal-actions .btn-skip{ background:transparent; color:var(--ink-soft); }
+  .modal-actions .btn-primary{ background:var(--gold-dark); color:var(--ink); }
   .card textarea{
     width:100%; border:none; background:transparent; resize:none;
     font-family:'Caveat', cursive; font-size:22px; line-height:1.25;
@@ -178,6 +238,20 @@
 <input type="file" id="file-input" accept="image/*" multiple>
 <div class="toast" id="toast"></div>
 
+<div class="modal-backdrop" id="pin-modal">
+  <div class="modal-box">
+    <h3 id="pin-modal-title">Lock this photo?</h3>
+    <p id="pin-modal-desc">Set a PIN and others will only see a blurred photo until they enter it.</p>
+    <form id="pin-modal-form">
+      <input type="password" id="pin-modal-input" inputmode="numeric" placeholder="PIN (4+ digits)" autocomplete="off">
+      <div class="modal-actions">
+        <button type="button" class="btn-skip" id="pin-modal-skip">Skip</button>
+        <button type="submit" class="btn-primary" id="pin-modal-ok">Lock it</button>
+      </div>
+    </form>
+  </div>
+</div>
+
 <!-- Supabase client library -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
@@ -202,6 +276,54 @@
   const countEl = document.getElementById('count');
   let entries = [];
   const captionTimers = {};
+  const unlockedIds = new Set(); // photos this browser tab has unlocked this session
+
+  // ---- Pin helpers ----
+  async function sha256Hex(text){
+    const buf = new TextEncoder().encode(text);
+    const digest = await crypto.subtle.digest('SHA-256', buf);
+    return Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2,'0')).join('');
+  }
+
+  const pinModal = document.getElementById('pin-modal');
+  const pinModalTitle = document.getElementById('pin-modal-title');
+  const pinModalDesc = document.getElementById('pin-modal-desc');
+  const pinModalForm = document.getElementById('pin-modal-form');
+  const pinModalInput = document.getElementById('pin-modal-input');
+  const pinModalSkip = document.getElementById('pin-modal-skip');
+  const pinModalOk = document.getElementById('pin-modal-ok');
+
+  // Generic "ask for a pin" dialog. mode: 'set' (skip allowed) or 'enter' (must submit a value).
+  function askForPin({ title, desc, okLabel, mode }){
+    return new Promise(resolve => {
+      pinModalTitle.textContent = title;
+      pinModalDesc.textContent = desc;
+      pinModalOk.textContent = okLabel;
+      pinModalSkip.style.display = mode === 'set' ? 'inline-block' : 'none';
+      pinModalInput.value = '';
+      pinModal.classList.add('show');
+      setTimeout(()=> pinModalInput.focus(), 30);
+
+      function cleanup(){
+        pinModal.classList.remove('show');
+        pinModalForm.removeEventListener('submit', onSubmit);
+        pinModalSkip.removeEventListener('click', onSkip);
+      }
+      function onSubmit(e){
+        e.preventDefault();
+        const val = pinModalInput.value.trim();
+        if(!val) return;
+        cleanup();
+        resolve(val);
+      }
+      function onSkip(){
+        cleanup();
+        resolve(null);
+      }
+      pinModalForm.addEventListener('submit', onSubmit);
+      pinModalSkip.addEventListener('click', onSkip);
+    });
+  }
 
   function showToast(msg){
     toastEl.textContent = msg;
@@ -238,7 +360,8 @@
       img_url: entry.img_url,
       img_path: entry.img_path,
       caption: entry.caption,
-      created_at: entry.created_at
+      created_at: entry.created_at,
+      pin_hash: entry.pin_hash || null
     });
     if(error){ console.error(error); showToast("Couldn't save that photo."); }
   }
@@ -246,6 +369,12 @@
   async function updateCaption(id, caption){
     const { error } = await supabase.from(TABLE).update({ caption }).eq('id', id);
     if(error){ console.error(error); showToast("Couldn't save your note."); }
+  }
+
+  async function updatePinHash(id, pinHash){
+    const { error } = await supabase.from(TABLE).update({ pin_hash: pinHash }).eq('id', id);
+    if(error){ console.error(error); showToast("Couldn't update the lock."); return false; }
+    return true;
   }
 
   async function deleteEntry(entry){
@@ -257,6 +386,45 @@
   function scheduleCaptionSave(id, value){
     clearTimeout(captionTimers[id]);
     captionTimers[id] = setTimeout(()=> updateCaption(id, value), 600);
+  }
+
+  function makeLockOverlay(entry, photoWrap){
+    const overlay = document.createElement('div');
+    overlay.className = 'lock-overlay';
+    overlay.innerHTML = '<div class="lock-icon">🔒</div><div class="lock-label">Locked</div>';
+
+    const form = document.createElement('form');
+    const input = document.createElement('input');
+    input.type = 'password';
+    input.inputMode = 'numeric';
+    input.placeholder = 'PIN';
+    input.autocomplete = 'off';
+    const btn = document.createElement('button');
+    btn.type = 'submit';
+    btn.textContent = 'Unlock';
+    form.appendChild(input);
+    form.appendChild(btn);
+    overlay.appendChild(form);
+
+    form.addEventListener('click', e => e.stopPropagation());
+    form.addEventListener('submit', async e => {
+      e.preventDefault();
+      const val = input.value.trim();
+      if(!val) return;
+      const hash = await sha256Hex(val);
+      if(hash === entry.pin_hash){
+        unlockedIds.add(entry.id);
+        photoWrap.classList.remove('locked');
+        overlay.remove();
+        showToast('Unlocked.');
+      }else{
+        input.value = '';
+        input.placeholder = 'Wrong PIN';
+        showToast('Wrong PIN.');
+      }
+    });
+
+    return overlay;
   }
 
   // ---- Rendering ----
@@ -275,6 +443,12 @@
     img.src = entry.img_url;
     img.alt = 'Pinned photo';
     photoWrap.appendChild(img);
+
+    const isLocked = !!entry.pin_hash && !unlockedIds.has(entry.id);
+    if(isLocked){
+      photoWrap.classList.add('locked');
+      photoWrap.appendChild(makeLockOverlay(entry, photoWrap));
+    }
     card.appendChild(photoWrap);
 
     const textarea = document.createElement('textarea');
@@ -301,7 +475,42 @@
       updateCount();
       await deleteEntry(entry);
     });
+    const lockToggle = document.createElement('button');
+    lockToggle.className = 'lock-toggle';
+    lockToggle.type = 'button';
+    lockToggle.textContent = entry.pin_hash ? '🔒 Change PIN' : '🔒 Add PIN';
+    lockToggle.addEventListener('click', async ()=>{
+      if(entry.pin_hash && !unlockedIds.has(entry.id)){
+        showToast('Enter the PIN on the photo first to change it.');
+        return;
+      }
+      const val = await askForPin({
+        title: entry.pin_hash ? 'Change PIN' : 'Lock this photo',
+        desc: entry.pin_hash
+          ? 'Enter a new PIN, or skip to remove the lock entirely.'
+          : 'Others will see a blurred photo until they enter this PIN.',
+        okLabel: entry.pin_hash ? 'Save' : 'Lock it',
+        mode: 'set'
+      });
+      const newHash = val ? await sha256Hex(val) : null;
+      const ok = await updatePinHash(entry.id, newHash);
+      if(!ok) return;
+      entry.pin_hash = newHash;
+      if(newHash){
+        unlockedIds.add(entry.id); // the person who just set it shouldn't be re-locked out
+        showToast('Photo locked.');
+      }else{
+        showToast('Lock removed.');
+      }
+      const photoWrap = card.querySelector('.photo-wrap');
+      photoWrap.classList.remove('locked');
+      const oldOverlay = photoWrap.querySelector('.lock-overlay');
+      if(oldOverlay) oldOverlay.remove();
+      lockToggle.textContent = entry.pin_hash ? '🔒 Change PIN' : '🔒 Add PIN';
+    });
+
     meta.appendChild(date);
+    meta.appendChild(lockToggle);
     meta.appendChild(del);
     card.appendChild(meta);
 
@@ -361,6 +570,14 @@
     const addSlot = board.querySelector('.add-slot');
     addSlot.classList.add('uploading');
 
+    const pin = await askForPin({
+      title: files.length > 1 ? 'Lock these photos?' : 'Lock this photo?',
+      desc: 'Set a PIN and everyone else will see a blurred photo until they enter it.',
+      okLabel: 'Lock it',
+      mode: 'set'
+    });
+    const pinHash = pin ? await sha256Hex(pin) : null;
+
     for(const file of files){
       try{
         const blob = await compressImage(file);
@@ -379,8 +596,11 @@
           img_url: pub.publicUrl,
           img_path: path,
           caption: '',
-          created_at: new Date().toISOString()
+          created_at: new Date().toISOString(),
+          pin_hash: pinHash
         };
+
+        if(pinHash) unlockedIds.add(id); // uploader sees their own photo unblurred right away
 
         await insertEntry(entry);
         entries.unshift(entry);
@@ -424,10 +644,19 @@
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: TABLE }, payload => {
         const row = payload.new;
         const e = entries.find(e => e.id === row.id);
-        if(e) e.caption = row.caption;
         const card = board.querySelector('.card[data-id="' + row.id + '"]');
+        if(e) e.caption = row.caption;
         if(card && document.activeElement !== card.querySelector('textarea')){
           card.querySelector('textarea').value = row.caption || '';
+        }
+        if(e && e.pin_hash !== row.pin_hash){
+          e.pin_hash = row.pin_hash;
+          if(!row.pin_hash) unlockedIds.delete(row.id); // lock removed, nothing to remember
+          if(card){
+            const idx = entries.indexOf(e);
+            const fresh = makeCard(e);
+            card.replaceWith(fresh);
+          }
         }
       })
       .subscribe();
